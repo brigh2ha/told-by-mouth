@@ -24,4 +24,5 @@ Planning. There is no code yet, on purpose: coding starts only when Byung asks f
 - [docs/plan.md](docs/plan.md): how the app works, how it stops fake reviews, architecture and milestones
 - [docs/decisions.md](docs/decisions.md): decisions made so far and open questions
 - [docs/competitors.md](docs/competitors.md): competitor research (Beli, ate, Naver receipt reviews and more)
+- [docs/fake-review-evidence.md](docs/fake-review-evidence.md): cited evidence that fake reviews exist in today's apps (regulators, platform reports, Korea)
 - [CLAUDE.md](CLAUDE.md): standing rules for anyone (or any Claude) working here
