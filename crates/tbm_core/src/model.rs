@@ -3,7 +3,7 @@
 //! acceptable live in `trust`, `collect`, `review` and `list`.
 
 use crate::cbor::{Cbor, Dec, Enc};
-use crate::crypto::{signed_message, tag, tagged_hash, Hash, PublicKey, Signature, Signer};
+use crate::crypto::{sha256, signed_message, tag, tagged_hash, Hash, PublicKey, Signature, Signer};
 use crate::error::Error;
 use crate::geo::GeoPoint;
 use crate::limits::{Time, CERTIFICATE_VALIDITY};
@@ -71,6 +71,15 @@ impl Certificate {
         };
         cert.server_sig = server.sign(&cert.signed_bytes())?;
         Ok(cert)
+    }
+
+    /// What the phone signs with its device key to renew this certificate:
+    /// the tag, the hash of the current certificate and the request time.
+    pub fn renew_request_bytes(&self, signed_at: Time) -> Vec<u8> {
+        let cert_hash = sha256(&self.to_cbor());
+        signed_message(tag::RENEW, 2, |e| {
+            e.bytes(&cert_hash).u64(signed_at);
+        })
     }
 
     /// The short id that list entries carry for "one review per reviewer".
