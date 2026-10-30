@@ -144,31 +144,25 @@ impl Place {
     }
 }
 
-/// The phone's location fix when the photo was taken.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Fix {
-    pub taken_at: Time,
-    pub location: GeoPoint,
-    pub accuracy_m: u32,
-}
-
 /// The fields of a Visit that `visit_id` covers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VisitBody {
     pub user_id: UserId,
     pub place: Place,
+    /// Hash of the food photo. Any photo can be used, including one from
+    /// the gallery (Byung's decision, Oct 30).
     pub photo_hash: Hash,
-    pub fix: Fix,
+    /// When the visit was collected in the app (not where: no location is
+    /// recorded). The stamp and review windows count from here.
+    pub taken_at: Time,
 }
 
 impl VisitBody {
     pub fn id(&self) -> Hash {
         tagged_hash(tag::VISIT_ID, 1, |e| {
-            e.array(10).bytes(&self.user_id);
+            e.array(7).bytes(&self.user_id);
             self.place.encode_into(e);
-            e.bytes(&self.photo_hash).u64(self.fix.taken_at);
-            self.fix.location.encode_into(e);
-            e.u64(self.fix.accuracy_m as u64);
+            e.bytes(&self.photo_hash).u64(self.taken_at);
         })
     }
 }
@@ -246,34 +240,27 @@ impl Visit {
 impl Cbor for Visit {
     fn encode(&self, e: &mut Enc) {
         let b = &self.body;
-        e.array(13).bytes(&self.visit_id).bytes(&b.user_id);
+        e.array(10).bytes(&self.visit_id).bytes(&b.user_id);
         b.place.encode_into(e);
-        e.bytes(&b.photo_hash).u64(b.fix.taken_at);
-        b.fix.location.encode_into(e);
-        e.u64(b.fix.accuracy_m as u64)
+        e.bytes(&b.photo_hash)
+            .u64(b.taken_at)
             .item(&self.user_sig)
             .opt(&self.stamp);
     }
     fn decode(d: &mut Dec<'_>) -> Result<Self, Error> {
-        d.expect_array(13)?;
+        d.expect_array(10)?;
         let visit_id = d.fixed()?;
         let user_id = d.fixed()?;
         let place = Place::decode_from(d)?;
         let photo_hash = d.fixed()?;
         let taken_at = d.u64()?;
-        let location = GeoPoint::decode_from(d)?;
-        let accuracy_m = d.u32()?;
         Ok(Self {
             visit_id,
             body: VisitBody {
                 user_id,
                 place,
                 photo_hash,
-                fix: Fix {
-                    taken_at,
-                    location,
-                    accuracy_m,
-                },
+                taken_at,
             },
             user_sig: d.item()?,
             stamp: d.opt()?,
@@ -335,7 +322,7 @@ impl Review {
             location: place.location,
             title: self.body.title.clone(),
             reviewer_id: self.body.reviewer.reviewer_id(),
-            visit_date: self.body.visit.body.fix.taken_at,
+            visit_date: self.body.visit.body.taken_at,
         }
     }
 }

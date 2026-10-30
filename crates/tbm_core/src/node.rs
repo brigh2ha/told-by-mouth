@@ -17,7 +17,7 @@ use crate::limits::{Time, GET_REVIEW_PER_MINUTE, HOLDER_RETRY_MS, IGNORE_TOKEN_S
 use crate::list::{build_list, ListInputs, ListRow, Offer};
 use crate::meeting::{Handshake, Met};
 use crate::model::{
-    Card, Catalog, Certificate, Fix, Place, Review, SavedReview, Stamp, ToldBy, TradeRecord, UserId,
+    Card, Catalog, Certificate, Place, Review, SavedReview, Stamp, ToldBy, TradeRecord, UserId,
 };
 use crate::review::{check_entry, verify_review, write_review, Draft};
 use crate::store::{own_saved, Store};
@@ -213,16 +213,16 @@ impl Node {
 
     // ------------------------------------------------------------ collect and write
 
-    /// Builds and signs a Visit for an in-app photo. Returns its id; it
-    /// waits for a stamp from the server.
-    pub fn collect(&mut self, place: Place, photo_hash: Hash, fix: Fix) -> Result<Hash, Error> {
+    /// Builds and signs a Visit for a food photo (camera or gallery),
+    /// collected now. Returns its id; it waits for a stamp from the server.
+    pub fn collect(&mut self, place: Place, photo_hash: Hash, now_ms: u64) -> Result<Hash, Error> {
         let user = self
             .store
             .identity
             .as_ref()
             .ok_or(Error::NoIdentity)?
             .user_id;
-        let visit = new_visit(&*self.signer, user, place, photo_hash, fix)?;
+        let visit = new_visit(&*self.signer, user, place, photo_hash, secs(now_ms))?;
         let id = visit.visit_id;
         self.store.visits.insert(id, visit);
         Ok(id)

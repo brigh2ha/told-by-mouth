@@ -11,7 +11,7 @@ use tbm_core::crypto::{sha256, Hash};
 use tbm_core::geo::GeoPoint;
 use tbm_core::limits::{DAY, HOLDER_RETRY_MS, HOUR, LINK_CHUNK, SAVED_LIMIT};
 use tbm_core::list::ListRow;
-use tbm_core::model::{Fix, Place};
+use tbm_core::model::Place;
 use tbm_core::review::Draft;
 use tbm_core::store::Store;
 use tbm_core::testkit::*;
@@ -112,13 +112,8 @@ impl Sim {
 
     fn collect(&mut self, i: usize, place: Place, taken_at: u64) -> Hash {
         let p = &mut self.phones[i];
-        let fix = Fix {
-            taken_at,
-            location: place.location,
-            accuracy_m: 12,
-        };
         let photo = sha256(format!("{}{}{taken_at}", p.name, place.place_id).as_bytes());
-        let visit_id = p.node.collect(place, photo, fix).unwrap();
+        let visit_id = p.node.collect(place, photo, taken_at * 1000).unwrap();
         let stamp = self.world.stamp(&visit_id, taken_at + 60);
         self.phones[i].node.stamp_visit(&visit_id, stamp).unwrap();
         visit_id

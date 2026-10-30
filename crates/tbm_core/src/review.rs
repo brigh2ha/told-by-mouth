@@ -21,7 +21,7 @@ pub fn check_text(title: &str, text: &str) -> Result<(), Error> {
 }
 
 fn check_written_in_window(visit: &Visit, written_at: Time) -> Result<(), Error> {
-    let taken_at = visit.body.fix.taken_at;
+    let taken_at = visit.body.taken_at;
     if written_at + CLOCK_DRIFT < taken_at {
         return Err(Error::InFuture);
     }

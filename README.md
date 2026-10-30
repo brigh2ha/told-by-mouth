@@ -2,7 +2,7 @@
 
 A mobile app (iPhone and Android) for collecting real restaurants and passing on honest reviews, the old-fashioned way: by word of mouth.
 
-- **Collect** a restaurant by photographing your food there with the in-app camera. There is no location check: the app trusts the reviewer, whose real name stands behind every review.
+- **Collect** a restaurant by adding a photo of your food there (camera or gallery). There is no location check: the app trusts the reviewer, whose real name stands behind every review.
 - **Trade** restaurants with people you meet, phone to phone over Bluetooth.
 - **Share reviews face to face only.** Every review carries the reviewer's verified real name and a digital signature, plus a "told by" chain showing who passed it to you. No public review site, so no fake reviews.
 

@@ -8,9 +8,7 @@ use crate::collect::{apply_stamp, new_visit};
 use crate::crypto::{sha256, Signer, SoftwareSigner};
 use crate::geo::GeoPoint;
 use crate::limits::{Time, HOUR, MINUTE};
-use crate::model::{
-    Certificate, Fix, Place, Review, RevocationList, RevokedKey, Stamp, UserId, Visit,
-};
+use crate::model::{Certificate, Place, Review, RevocationList, RevokedKey, Stamp, UserId, Visit};
 use crate::review::{write_review, Draft};
 use crate::trust::Trust;
 
@@ -101,14 +99,9 @@ impl Person {
 
     /// A stamped visit to `place`, photo taken at `taken_at` right there.
     pub fn visit(&self, w: &World, place: Place, taken_at: Time) -> Visit {
-        let fix = Fix {
-            taken_at,
-            location: place.location,
-            accuracy_m: 10,
-        };
         let photo_hash =
             sha256(format!("{}{}{taken_at}", self.cert.real_name, place.place_id).as_bytes());
-        let mut v = new_visit(&*self.key, self.cert.user_id, place, photo_hash, fix).unwrap();
+        let mut v = new_visit(&*self.key, self.cert.user_id, place, photo_hash, taken_at).unwrap();
         let stamp = w.stamp(&v.visit_id, taken_at + 5 * MINUTE);
         apply_stamp(&mut v, stamp, &w.trust).unwrap();
         v

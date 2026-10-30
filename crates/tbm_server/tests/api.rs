@@ -15,7 +15,7 @@ use tower::ServiceExt;
 use tbm_core::cbor::Cbor;
 use tbm_core::crypto::{sha256, Signer, SoftwareSigner};
 use tbm_core::limits::DAY;
-use tbm_core::model::{Certificate, Fix, RevocationList, Stamp};
+use tbm_core::model::{Certificate, RevocationList, Stamp};
 use tbm_core::review::{verify_review, Draft};
 use tbm_core::store::Store;
 use tbm_core::testkit::gangnam;
@@ -327,12 +327,7 @@ async fn end_to_end_certificate_stamp_review() {
 
     // Collect: the phone builds and signs the visit, the server stamps only the id.
     let place = gangnam();
-    let fix = Fix {
-        taken_at: T0,
-        location: place.location,
-        accuracy_m: 8,
-    };
-    let visit_id = node.collect(place, sha256(b"photo"), fix).unwrap();
+    let visit_id = node.collect(place, sha256(b"photo"), T0 * 1000).unwrap();
     s.set_time(T0 + 120);
     let (st, v) = s
         .call(
@@ -362,7 +357,9 @@ async fn end_to_end_certificate_stamp_review() {
     verify_review(&review, None, &trust, T0 + DAY).unwrap();
 
     // A stamp asked for a day and a half later is refused by the phone.
-    let visit2 = node.collect(gangnam(), sha256(b"photo2"), fix).unwrap();
+    let visit2 = node
+        .collect(gangnam(), sha256(b"photo2"), T0 * 1000)
+        .unwrap();
     s.set_time(T0 + 36 * 3600);
     let (_, v) = s
         .call("POST", "/v1/stamps", Some(json!({ "visit_id": B64.encode(visit2), "attestation": { "platform": "dev", "token": "ok" } })), None)
