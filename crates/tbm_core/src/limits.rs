@@ -21,11 +21,6 @@ pub const STAMP_WINDOW: Time = 24 * HOUR;
 /// A review must be written within 30 days of the visit (to tune).
 pub const REVIEW_WINDOW: Time = 30 * DAY;
 
-/// A location fix worse than this is refused.
-pub const MAX_FIX_ACCURACY_M: u32 = 50;
-/// The picked place must be within this distance plus the fix accuracy.
-pub const PLACE_RADIUS_M: u32 = 100;
-
 pub const REAL_NAME_MAX: usize = 50;
 pub const TITLE_MAX: usize = 40;
 pub const TEXT_MAX: usize = 1000;

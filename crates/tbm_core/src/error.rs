@@ -36,10 +36,6 @@ pub enum Error {
     },
     #[error("invalid location")]
     BadLocation,
-    #[error("location fix is {accuracy_m} m; move outside and try again")]
-    FixTooCoarse { accuracy_m: u32 },
-    #[error("restaurant is {distance_m} m away, more than the allowed {allowed_m} m")]
-    PlaceTooFar { distance_m: u32, allowed_m: u32 },
     #[error("photo is larger than {max} bytes")]
     PhotoTooLarge { max: usize },
     #[error("photo does not match its hash")]

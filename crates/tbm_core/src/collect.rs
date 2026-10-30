@@ -1,21 +1,21 @@
-//! Collecting a restaurant: the location checks, building and signing the
-//! Visit, and accepting the server's stamp.
+//! Collecting a restaurant: building and signing the Visit, and accepting
+//! the server's stamp.
+//!
+//! There is no location check (Byung's decision, Oct 30): the app trusts
+//! the reviewer, whose real name stands behind every review. The phone's
+//! location fix is still recorded in the Visit, but nothing is refused
+//! because of it.
 
 use crate::crypto::{Hash, PublicKey, Signer};
 use crate::error::Error;
-use crate::limits::{MAX_FIX_ACCURACY_M, PLACE_ID_MAX_BYTES, PLACE_NAME_MAX, PLACE_RADIUS_M};
+use crate::limits::{PLACE_ID_MAX_BYTES, PLACE_NAME_MAX};
 use crate::model::{check_len, Fix, Place, Stamp, UserId, Visit, VisitBody};
 use crate::trust::Trust;
 
-/// A fix worse than 50 m is refused ("move outside and try again").
+/// The fix only has to be a valid coordinate; its accuracy and distance
+/// from the restaurant are not checked.
 pub fn check_fix(fix: &Fix) -> Result<(), Error> {
-    fix.location.check()?;
-    if fix.accuracy_m > MAX_FIX_ACCURACY_M {
-        return Err(Error::FixTooCoarse {
-            accuracy_m: fix.accuracy_m,
-        });
-    }
-    Ok(())
+    fix.location.check()
 }
 
 pub fn check_place(place: &Place) -> Result<(), Error> {
@@ -30,19 +30,6 @@ pub fn check_place(place: &Place) -> Result<(), Error> {
     place.location.check()
 }
 
-/// The place must be within 100 m plus the fix's accuracy.
-pub fn check_place_near(place: &Place, fix: &Fix) -> Result<(), Error> {
-    let distance = place.location.distance_m(&fix.location);
-    let allowed = PLACE_RADIUS_M + fix.accuracy_m;
-    if distance > allowed as f64 {
-        return Err(Error::PlaceTooFar {
-            distance_m: distance.round() as u32,
-            allowed_m: allowed,
-        });
-    }
-    Ok(())
-}
-
 /// Builds the Visit for an in-app photo and has the secure chip sign it.
 /// The visit still needs the server stamp before it becomes a Card.
 pub fn new_visit(
@@ -54,7 +41,6 @@ pub fn new_visit(
 ) -> Result<Visit, Error> {
     check_fix(&fix)?;
     check_place(&place)?;
-    check_place_near(&place, &fix)?;
     let body = VisitBody {
         user_id,
         place,
@@ -79,7 +65,7 @@ pub fn apply_stamp(visit: &mut Visit, stamp: Stamp, trust: &Trust) -> Result<(),
 }
 
 /// Every check on a visit someone else shows us: id, collector signature,
-/// location rules and the stamp.
+/// well-formed fields and the stamp.
 pub fn verify_visit(visit: &Visit, collector_key: &PublicKey, trust: &Trust) -> Result<(), Error> {
     if visit.body.id() != visit.visit_id {
         return Err(Error::IdMismatch("visit"));
@@ -91,7 +77,6 @@ pub fn verify_visit(visit: &Visit, collector_key: &PublicKey, trust: &Trust) -> 
     )?;
     check_fix(&visit.body.fix)?;
     check_place(&visit.body.place)?;
-    check_place_near(&visit.body.place, &visit.body.fix)?;
     let stamp = visit.stamp.as_ref().ok_or(Error::NotStamped)?;
     trust.verify_stamp(&visit.visit_id, visit.body.fix.taken_at, stamp)
 }
@@ -122,22 +107,18 @@ mod tests {
     }
 
     #[test]
-    fn location_rules() {
+    fn no_location_check() {
         let device = SoftwareSigner::generate();
-        // About 55 m away with a 10 m fix: fine.
-        new_visit(&device, [1; 16], place(), [2; 32], fix(10, 500)).unwrap();
-        // A 60 m fix is refused.
+        // A coarse fix far from the restaurant is accepted: we trust the reviewer.
+        new_visit(&device, [1; 16], place(), [2; 32], fix(5_000, 900_000)).unwrap();
+        new_visit(&device, [1; 16], place(), [2; 32], fix(10, 0)).unwrap();
+        // Coordinates must still be real ones.
+        let mut bad = fix(10, 0);
+        bad.location.lat = 91_000_000;
         assert_eq!(
-            new_visit(&device, [1; 16], place(), [2; 32], fix(60, 0)).unwrap_err(),
-            Error::FixTooCoarse { accuracy_m: 60 }
+            new_visit(&device, [1; 16], place(), [2; 32], bad).unwrap_err(),
+            Error::BadLocation
         );
-        // About 133 m away with a 20 m fix: 120 allowed, refused.
-        assert!(matches!(
-            new_visit(&device, [1; 16], place(), [2; 32], fix(20, 1200)).unwrap_err(),
-            Error::PlaceTooFar { allowed_m: 120, .. }
-        ));
-        // ... but a 40 m fix allows 140 m.
-        new_visit(&device, [1; 16], place(), [2; 32], fix(40, 1200)).unwrap();
     }
 
     #[test]

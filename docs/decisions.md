@@ -4,11 +4,12 @@ Decisions Byung has made so far, newest first. The full reasoning is in [plan.md
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-30 | **No location check when collecting.** The app trusts the reviewer, whose verified real name stands behind every review. The photo's location fix is still recorded but nothing is refused because of it (the spec's "fix within 50 m" and "place within 100 m + accuracy" rules are dropped). The in-app camera, the server stamp within 24 hours and the 30-day review window stay. |
 | 2026-10-30 | **Coding starts, at Byung's request**, following the review sharing algorithm spec (rev 44, https://claude.ai/artifact/5mNvvsPuEomyj8u6aQ4Hyt). First pieces: the shared Rust core `tbm_core` (every rule, no I/O, tested with multi-phone simulations) and the small server `tbm_server` (certificates, visit stamps, revocation list; stores no reviews). Crates use the `tbm_` prefix. |
 | 2026-10-29 | The app is named **Told by Mouth**. "Mouth to mouth" was dropped because English speakers hear CPR. The new name plays on 구전동화 (folk tales passed on by word of mouth). |
 | 2026-10-29 | The project moves to GitHub (`brigh2ha/told-by-mouth`). Only the planning material for Told by Mouth goes in. The old creature-game prototype code ("preflop") stays out. |
 | 2026-10-25 | The goal changes from a creature-trading game to a **real-world restaurant collection and review app** for iOS and Android. |
-| 2026-10-25 | You collect a restaurant by photographing its food there with the in-app camera (no gallery uploads), checked against your location. |
+| 2026-10-25 | You collect a restaurant by photographing its food there with the in-app camera (no gallery uploads), checked against your location. (The location check was dropped on 2026-10-30, see above.) |
 | 2026-10-25 | Reviews use **real names** and are shared **only face to face**, phone to phone, to fight fake reviews. They are signed, and each pass adds a "told by" signature. |
 | 2026-10-25 | **Native screens**: SwiftUI on iPhone, Jetpack Compose on Android, for native feel, animations and design. A **shared Rust core** (via UniFFI) holds every rule. Bevy, Tauri + Leptos and Dioxus were rejected. |
 | 2026-10-25 | **Mobile only.** There is no desktop app. Two-player behaviour is tested with Rust simulations. |
