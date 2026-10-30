@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["crates/tbm_core", "crates/tbm_server"]
+
+[workspace.package]
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+tbm_core = { path = "crates/tbm_core" }

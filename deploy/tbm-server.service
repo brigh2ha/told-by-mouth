@@ -1,0 +1,39 @@
+# systemd unit for the Told by Mouth server.
+# Install: see docs/server.md. Not installed automatically.
+[Unit]
+Description=Told by Mouth server (certificates, stamps, revocations)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tbm
+Group=tbm
+ExecStart=/usr/local/bin/tbm_server --config /etc/tbm/tbm-server.toml
+Restart=on-failure
+RestartSec=2
+Environment=RUST_LOG=tbm_server=info
+
+# Data lives in /var/lib/tbm (created by systemd, owned by tbm).
+StateDirectory=tbm
+StateDirectoryMode=0700
+
+# Hardening.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/tbm
+
+[Install]
+WantedBy=multi-user.target

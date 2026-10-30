@@ -1,0 +1,28 @@
+# Told by Mouth server configuration.
+# Copy to /etc/tbm/tbm-server.toml and adjust. Relative paths are relative to this file.
+
+# Where the server listens. Keep it on localhost and let nginx terminate HTTPS
+# (phones refuse plain HTTP). 8080 is already used by code-server on this box.
+listen = "127.0.0.1:8787"
+
+# SQLite database: people (as a hash of the identity provider's reference),
+# issued certificates and revocations. No names, reviews or visits.
+database = "/var/lib/tbm/tbm.sqlite"
+
+# The server's P-256 private key (32 raw bytes). Created on first start if
+# missing, readable only by the service user. BACK IT UP and never commit it:
+# every certificate and stamp depends on it.
+server_key = "/var/lib/tbm/server.key"
+
+# Id of that key, carried in every certificate and stamp (1 to 255). Bump it
+# when replacing the key, and build the new public key into the apps.
+server_key_id = 1
+
+# File with the admin token (at least 32 characters) for /v1/admin/revoke.
+# Leave out, or let the file be missing, to turn admin endpoints off.
+admin_token_file = "/etc/tbm/admin.token"
+
+# DEVELOPMENT ONLY: the stub identity check and stub attestation accept anyone
+# under any name. Turn off before real users exist. With it off, certificate
+# and stamp requests answer 503 until a real provider is plugged in.
+dev_mode = true

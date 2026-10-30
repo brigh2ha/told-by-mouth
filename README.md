@@ -2,7 +2,7 @@
 
 A mobile app (iPhone and Android) for collecting real restaurants and passing on honest reviews, the old-fashioned way: by word of mouth.
 
-- **Collect** a restaurant by photographing your food there with the in-app camera. Your location proves you were there.
+- **Collect** a restaurant by adding a photo of your food there (camera or gallery). There is no location check: the app trusts the reviewer, whose real name stands behind every review.
 - **Trade** restaurants with people you meet, phone to phone over Bluetooth.
 - **Share reviews face to face only.** Every review carries the reviewer's verified real name and a digital signature, plus a "told by" chain showing who passed it to you. No public review site, so no fake reviews.
 
@@ -10,7 +10,12 @@ The name plays on 구전동화, folk tales handed down by mouth: one mouth eats,
 
 ## Status
 
-Planning. There is no code yet, on purpose: coding starts only when Byung asks for it.
+Coding started on Oct 30, 2026, at Byung's request.
+
+- `crates/tbm_core`: the shared Rust core. Every rule (reviews, signatures, the nearby list, the meeting handshake, messages, trades) as pure Rust with no I/O, tested with multi-phone simulations. Run `cargo test`.
+- `crates/tbm_server`: the small server for certificates, visit stamps and the revocation list. It stores no reviews. See [docs/server.md](docs/server.md).
+
+The iPhone and Android apps (and the UniFFI bridge) are not started yet.
 
 ## Planned stack
 
