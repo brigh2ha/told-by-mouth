@@ -4,6 +4,7 @@ Decisions Byung has made so far, newest first. The full reasoning is in [plan.md
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-30 | **Coding starts, at Byung's request**, following the review sharing algorithm spec (rev 44, https://claude.ai/artifact/5mNvvsPuEomyj8u6aQ4Hyt). First pieces: the shared Rust core `tbm_core` (every rule, no I/O, tested with multi-phone simulations) and the small server `tbm_server` (certificates, visit stamps, revocation list; stores no reviews). Crates use the `tbm_` prefix. |
 | 2026-10-29 | The app is named **Told by Mouth**. "Mouth to mouth" was dropped because English speakers hear CPR. The new name plays on 구전동화 (folk tales passed on by word of mouth). |
 | 2026-10-29 | The project moves to GitHub (`brigh2ha/told-by-mouth`). Only the planning material for Told by Mouth goes in. The old creature-game prototype code ("preflop") stays out. |
 | 2026-10-25 | The goal changes from a creature-trading game to a **real-world restaurant collection and review app** for iOS and Android. |
