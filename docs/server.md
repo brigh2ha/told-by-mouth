@@ -1,18 +1,17 @@
 # Server
 
-`tbm_server` is the small Told by Mouth server. It does three things and **stores no reviews**:
+`tbm_server` is the small Told by Mouth server. It does two things and **stores no reviews**:
 
 - **Certificates.** After a real-name identity check and a device attestation, it signs a certificate saying "this device key belongs to this real name". Valid for one year; renewable in the last 30 days (and after expiry).
-- **Visit stamps.** It stamps a visit after a device attestation. It only ever sees the `visit_id` (a hash), never the restaurant, location or photo.
 - **Revocation list.** It publishes a signed list of revoked people and device keys. Phones download it about once a day.
 
-The database holds only: user ids, a hash of the identity provider's person reference (so one person keeps one user id), issued certificate keys with dates, and revocations. No names, no reviews, no visits.
+The database holds only: user ids, a hash of the identity provider's person reference (so one person keeps one user id), issued certificate keys with dates, and revocations. No names, no reviews, no visits. It never sees a visit at all: collecting a restaurant works fully offline, with no server stamp (Byung's decision, 2026-11-03).
 
 Everything it signs uses the same encoding and code as the phones (`tbm_core`), so the tests check the server's output with the exact code the apps run.
 
 ## API
 
-All bodies are JSON. Binary values (keys, certificates, stamps) are standard base64; certificates, stamps and the revocation list are the CBOR records from `tbm_core`.
+All bodies are JSON. Binary values (keys, certificates) are standard base64; certificates and the revocation list are the CBOR records from `tbm_core`.
 
 | Method and path | Body | Answer |
 | --- | --- | --- |
@@ -20,7 +19,6 @@ All bodies are JSON. Binary values (keys, certificates, stamps) are standard bas
 | `GET /v1/server-key` | | `server_key_id`, `public_key` (base64), `public_key_hex`. Build this into the apps. |
 | `POST /v1/certificates` | `public_key`, `identity {provider, token}`, `attestation {platform, token}` | `certificate`, `user_id` (hex), `expires_at` |
 | `POST /v1/certificates/renew` | `certificate`, `signed_at`, `signature` (device key over `Certificate::renew_request_bytes(signed_at)`), `attestation` | same as above |
-| `POST /v1/stamps` | `visit_id` (32 bytes), `attestation` | `stamp` (CBOR `Stamp`), `stamp_at` |
 | `GET /v1/revocations` | | `revocations` (CBOR `RevocationList`), `issued_at` |
 | `POST /v1/admin/revoke` | `user_id` (hex) **or** `device_key` (base64); header `Authorization: Bearer <admin token>` | `revoked`, `at` |
 
@@ -33,9 +31,9 @@ Errors come back as `{"error": "..."}` with 400 (bad input), 401 (admin token), 
 Which identity check to use depends on the launch country, which is still open (see [decisions.md](decisions.md)). Both checks are traits in `crates/tbm_server/src/providers.rs`:
 
 - `IdentityProvider`: turns the provider's result into a real name and a stable person reference.
-- `Attestation`: checks Apple App Attest or Google Play Integrity, bound to the public key (certificates) or the visit id (stamps).
+- `Attestation`: checks Apple App Attest or Google Play Integrity, bound to the public key being certified.
 
-Only **development stubs** exist, enabled with `dev_mode = true`: identity provider `dev` takes the real name as the token, and attestation platform `dev` accepts the token `ok`. **Anyone can claim any name in dev mode.** With `dev_mode = false` (the default), certificate and stamp requests answer 503 until real providers are written. Real App Attest and Play Integrity also need a server-issued challenge; that endpoint comes with them.
+Only **development stubs** exist, enabled with `dev_mode = true`: identity provider `dev` takes the real name as the token, and attestation platform `dev` accepts the token `ok`. **Anyone can claim any name in dev mode.** With `dev_mode = false` (the default), certificate requests answer 503 until real providers are written. Real App Attest and Play Integrity also need a server-issued challenge; that endpoint comes with them.
 
 ## Build
 
@@ -145,5 +143,5 @@ curl -X POST https://<your-domain>/tbm/v1/admin/revoke \
 ## Not done yet
 
 - Real identity provider and App Attest / Play Integrity (blocked on the launch country decision).
-- A challenge endpoint for attestation, and per-device rate limits on stamps.
+- A challenge endpoint for attestation.
 - Monitoring and backups of `/var/lib/tbm` (the key and the database).

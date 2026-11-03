@@ -1,13 +1,13 @@
 //! The chain of trust. Our server's public keys are built into the app; from
-//! them a phone checks certificates, stamps and the revocation list, offline.
+//! them a phone checks certificates and the revocation list, offline.
 
 use std::collections::BTreeMap;
 
 use crate::cbor::{Cbor, Dec, Enc};
-use crate::crypto::{Hash, PublicKey};
+use crate::crypto::PublicKey;
 use crate::error::Error;
-use crate::limits::{Time, CLOCK_DRIFT, REAL_NAME_MAX, REVOCATIONS_STALE, STAMP_WINDOW};
-use crate::model::{check_len, Certificate, RevocationList, Stamp, UserId};
+use crate::limits::{Time, CLOCK_DRIFT, REAL_NAME_MAX, REVOCATIONS_STALE};
+use crate::model::{check_len, Certificate, RevocationList, UserId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Trust {
@@ -73,28 +73,6 @@ impl Trust {
         self.revocations
             .as_ref()
             .is_some_and(|l| l.users.contains(user))
-    }
-
-    /// Checks a stamp's signature and that it came within 24 hours of the
-    /// photo (and not before it, allowing for clock drift).
-    pub fn verify_stamp(
-        &self,
-        visit_id: &Hash,
-        taken_at: Time,
-        stamp: &Stamp,
-    ) -> Result<(), Error> {
-        self.server_key(stamp.server_key_id)?.verify(
-            &Stamp::signed_bytes(visit_id, stamp.stamp_at),
-            &stamp.stamp_sig,
-            "stamp",
-        )?;
-        if stamp.stamp_at + CLOCK_DRIFT < taken_at {
-            return Err(Error::InFuture);
-        }
-        if stamp.stamp_at > taken_at + STAMP_WINDOW {
-            return Err(Error::StampTooLate);
-        }
-        Ok(())
     }
 
     pub fn verify_revocations(&self, list: &RevocationList) -> Result<(), Error> {

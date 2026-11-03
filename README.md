@@ -13,7 +13,7 @@ The name plays on 구전동화, folk tales handed down by mouth: one mouth eats,
 Coding started on Oct 30, 2026, at Byung's request.
 
 - `crates/tbm_core`: the shared Rust core. Every rule (reviews, signatures, the nearby list, the meeting handshake, messages, trades) as pure Rust with no I/O, tested with multi-phone simulations. Run `cargo test`.
-- `crates/tbm_server`: the small server for certificates, visit stamps and the revocation list. It stores no reviews. See [docs/server.md](docs/server.md).
+- `crates/tbm_server`: the small server for certificates and the revocation list. It stores no reviews. See [docs/server.md](docs/server.md).
 
 The iPhone and Android apps (and the UniFFI bridge) are not started yet.
 

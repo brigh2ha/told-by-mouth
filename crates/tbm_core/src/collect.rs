@@ -1,17 +1,18 @@
-//! Collecting a restaurant: building and signing the Visit, and accepting
-//! the server's stamp.
+//! Collecting a restaurant: building and signing the Visit.
 //!
 //! There is no location check and any photo can be used, from the camera or
 //! the gallery (Byung's decisions, Oct 30): the app trusts the reviewer,
 //! whose real name stands behind every review. The Visit records which
 //! restaurant and when, never where the phone was.
+//!
+//! There is no server stamp either (Byung's decision, Nov 3): a signed visit
+//! is a Card at once, fully offline. `taken_at` is the collector's word.
 
 use crate::crypto::{Hash, PublicKey, Signer};
 use crate::error::Error;
 use crate::limits::Time;
 use crate::limits::{PLACE_ID_MAX_BYTES, PLACE_NAME_MAX};
-use crate::model::{check_len, Place, Stamp, UserId, Visit, VisitBody};
-use crate::trust::Trust;
+use crate::model::{check_len, Place, UserId, Visit, VisitBody};
 
 pub fn check_place(place: &Place) -> Result<(), Error> {
     if place.place_id.is_empty() || place.place_id.len() > PLACE_ID_MAX_BYTES {
@@ -27,7 +28,6 @@ pub fn check_place(place: &Place) -> Result<(), Error> {
 
 /// Builds the Visit for a food photo and has the secure chip sign it.
 /// `taken_at` is now, when the visit is collected in the app.
-/// The visit still needs the server stamp before it becomes a Card.
 pub fn new_visit(
     signer: &dyn Signer,
     user_id: UserId,
@@ -48,20 +48,12 @@ pub fn new_visit(
         visit_id,
         body,
         user_sig,
-        stamp: None,
     })
 }
 
-/// Accepts the server's stamp onto a visit after checking it.
-pub fn apply_stamp(visit: &mut Visit, stamp: Stamp, trust: &Trust) -> Result<(), Error> {
-    trust.verify_stamp(&visit.visit_id, visit.body.taken_at, &stamp)?;
-    visit.stamp = Some(stamp);
-    Ok(())
-}
-
 /// Every check on a visit someone else shows us: id, collector signature,
-/// well-formed fields and the stamp.
-pub fn verify_visit(visit: &Visit, collector_key: &PublicKey, trust: &Trust) -> Result<(), Error> {
+/// and well-formed fields.
+pub fn verify_visit(visit: &Visit, collector_key: &PublicKey) -> Result<(), Error> {
     if visit.body.id() != visit.visit_id {
         return Err(Error::IdMismatch("visit"));
     }
@@ -70,9 +62,7 @@ pub fn verify_visit(visit: &Visit, collector_key: &PublicKey, trust: &Trust) -> 
         &visit.user_sig,
         "visit",
     )?;
-    check_place(&visit.body.place)?;
-    let stamp = visit.stamp.as_ref().ok_or(Error::NotStamped)?;
-    trust.verify_stamp(&visit.visit_id, visit.body.taken_at, stamp)
+    check_place(&visit.body.place)
 }
 
 #[cfg(test)]
@@ -80,7 +70,6 @@ mod tests {
     use super::*;
     use crate::crypto::SoftwareSigner;
     use crate::geo::GeoPoint;
-    use crate::limits::HOUR;
 
     const T0: u64 = 1_790_000_000;
 
@@ -107,37 +96,21 @@ mod tests {
     }
 
     #[test]
-    fn stamp_window() {
-        let server = SoftwareSigner::generate();
-        let trust = Trust::new([(1, server.public_key())]);
+    fn verify_visit_checks_signature_and_id() {
         let device = SoftwareSigner::generate();
-        let mut visit = new_visit(&device, [1; 16], place(), [2; 32], T0).unwrap();
-        assert_eq!(
-            verify_visit(&visit, &device.public_key(), &trust),
-            Err(Error::NotStamped)
-        );
-
-        let late = Stamp::issue(&server, 1, &visit.visit_id, T0 + 25 * HOUR).unwrap();
-        assert_eq!(
-            apply_stamp(&mut visit, late, &trust),
-            Err(Error::StampTooLate)
-        );
-        let wrong_visit = Stamp::issue(&server, 1, &[0; 32], T0 + HOUR).unwrap();
-        assert!(apply_stamp(&mut visit, wrong_visit, &trust).is_err());
-
-        let ok = Stamp::issue(&server, 1, &visit.visit_id, T0 + HOUR).unwrap();
-        apply_stamp(&mut visit, ok, &trust).unwrap();
-        verify_visit(&visit, &device.public_key(), &trust).unwrap();
+        let visit = new_visit(&device, [1; 16], place(), [2; 32], T0).unwrap();
+        // Signed is enough: no stamp is needed.
+        verify_visit(&visit, &device.public_key()).unwrap();
 
         // Someone else's key cannot claim this visit.
         let other = SoftwareSigner::generate();
-        assert!(verify_visit(&visit, &other.public_key(), &trust).is_err());
+        assert!(verify_visit(&visit, &other.public_key()).is_err());
 
         // Changing the place breaks the id.
         let mut moved = visit.clone();
         moved.body.place.location.lat += 10;
         assert_eq!(
-            verify_visit(&moved, &device.public_key(), &trust),
+            verify_visit(&moved, &device.public_key()),
             Err(Error::IdMismatch("visit"))
         );
     }

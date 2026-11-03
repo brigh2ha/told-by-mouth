@@ -41,10 +41,6 @@ pub enum Error {
     #[error("photo does not match its hash")]
     PhotoMismatch,
 
-    #[error("visit has no server stamp yet")]
-    NotStamped,
-    #[error("stamp came more than 24 hours after the photo")]
-    StampTooLate,
     #[error("only a visit you collected yourself can be reviewed")]
     NotMyVisit,
     #[error("visit is older than 30 days")]

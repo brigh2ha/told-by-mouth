@@ -34,7 +34,6 @@ pub fn random_bytes<const N: usize>() -> [u8; N] {
 pub mod tag {
     pub const CERTIFICATE: &str = "tbm/cert/1";
     pub const VISIT: &str = "tbm/visit/1";
-    pub const STAMP: &str = "tbm/stamp/1";
     pub const REVIEW: &str = "tbm/review/1";
     pub const HELLO: &str = "tbm/hello/1";
     pub const TRADE: &str = "tbm/trade/1";

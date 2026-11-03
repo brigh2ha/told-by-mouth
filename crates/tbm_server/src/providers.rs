@@ -30,7 +30,7 @@ pub trait IdentityProvider: Send + Sync {
 }
 
 /// A device-integrity check bound to `binding` (the hash of the public key
-/// for certificates, the visit_id for stamps).
+/// being certified).
 ///
 /// TODO before launch: App Attest and Play Integrity both need a fresh
 /// server-issued challenge folded into `binding`; add a challenge endpoint

@@ -153,7 +153,8 @@ pub struct VisitBody {
     /// the gallery (Byung's decision, Oct 30).
     pub photo_hash: Hash,
     /// When the visit was collected in the app (not where: no location is
-    /// recorded). The stamp and review windows count from here.
+    /// recorded). This is the collector's own word: there is no server
+    /// stamp (Byung's decision, Nov 3). The review window counts from here.
     pub taken_at: Time,
 }
 
@@ -167,57 +168,6 @@ impl VisitBody {
     }
 }
 
-/// Our server's stamp, given after the device-integrity check. The server
-/// only ever sees `visit_id`.
-///
-/// `server_key_id` is not in the spec's field list; it says which server key
-/// made the stamp, the same way certificates do, so the key can be replaced.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Stamp {
-    pub stamp_at: Time,
-    pub server_key_id: u8,
-    pub stamp_sig: Signature,
-}
-
-impl Stamp {
-    pub fn signed_bytes(visit_id: &Hash, stamp_at: Time) -> Vec<u8> {
-        signed_message(tag::STAMP, 2, |e| {
-            e.bytes(visit_id).u64(stamp_at);
-        })
-    }
-
-    /// Server side.
-    pub fn issue(
-        server: &dyn Signer,
-        server_key_id: u8,
-        visit_id: &Hash,
-        stamp_at: Time,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            stamp_at,
-            server_key_id,
-            stamp_sig: server.sign(&Self::signed_bytes(visit_id, stamp_at))?,
-        })
-    }
-}
-
-impl Cbor for Stamp {
-    fn encode(&self, e: &mut Enc) {
-        e.array(3)
-            .u64(self.stamp_at)
-            .u64(self.server_key_id as u64)
-            .item(&self.stamp_sig);
-    }
-    fn decode(d: &mut Dec<'_>) -> Result<Self, Error> {
-        d.expect_array(3)?;
-        Ok(Self {
-            stamp_at: d.u64()?,
-            server_key_id: d.u8()?,
-            stamp_sig: d.item()?,
-        })
-    }
-}
-
 /// The record made when you collect a restaurant.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Visit {
@@ -225,8 +175,6 @@ pub struct Visit {
     pub body: VisitBody,
     /// The collector's device key over `visit_id`.
     pub user_sig: Signature,
-    /// Empty until the server stamps it (the visit waits while offline).
-    pub stamp: Option<Stamp>,
 }
 
 impl Visit {
@@ -240,15 +188,12 @@ impl Visit {
 impl Cbor for Visit {
     fn encode(&self, e: &mut Enc) {
         let b = &self.body;
-        e.array(10).bytes(&self.visit_id).bytes(&b.user_id);
+        e.array(9).bytes(&self.visit_id).bytes(&b.user_id);
         b.place.encode_into(e);
-        e.bytes(&b.photo_hash)
-            .u64(b.taken_at)
-            .item(&self.user_sig)
-            .opt(&self.stamp);
+        e.bytes(&b.photo_hash).u64(b.taken_at).item(&self.user_sig);
     }
     fn decode(d: &mut Dec<'_>) -> Result<Self, Error> {
-        d.expect_array(10)?;
+        d.expect_array(9)?;
         let visit_id = d.fixed()?;
         let user_id = d.fixed()?;
         let place = Place::decode_from(d)?;
@@ -263,7 +208,6 @@ impl Cbor for Visit {
                 taken_at,
             },
             user_sig: d.item()?,
-            stamp: d.opt()?,
         })
     }
 }

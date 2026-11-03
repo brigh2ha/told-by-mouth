@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::collect::{apply_stamp, new_visit};
+use crate::collect::new_visit;
 use crate::crypto::{sha256, Signer, SoftwareSigner};
 use crate::geo::GeoPoint;
-use crate::limits::{Time, HOUR, MINUTE};
-use crate::model::{Certificate, Place, Review, RevocationList, RevokedKey, Stamp, UserId, Visit};
+use crate::limits::{Time, HOUR};
+use crate::model::{Certificate, Place, Review, RevocationList, RevokedKey, UserId, Visit};
 use crate::review::{write_review, Draft};
 use crate::trust::Trust;
 
@@ -55,10 +55,6 @@ impl World {
         Person { cert, key }
     }
 
-    pub fn stamp(&self, visit_id: &[u8; 32], at: Time) -> Stamp {
-        Stamp::issue(&self.server, SERVER_KEY_ID, visit_id, at).unwrap()
-    }
-
     pub fn revoke_users(&self, users: &[UserId], issued_at: Time) -> RevocationList {
         RevocationList::issue(
             &self.server,
@@ -97,14 +93,11 @@ impl Person {
         self.cert.user_id
     }
 
-    /// A stamped visit to `place`, photo taken at `taken_at` right there.
-    pub fn visit(&self, w: &World, place: Place, taken_at: Time) -> Visit {
+    /// A signed visit to `place`, collected at `taken_at`.
+    pub fn visit(&self, place: Place, taken_at: Time) -> Visit {
         let photo_hash =
             sha256(format!("{}{}{taken_at}", self.cert.real_name, place.place_id).as_bytes());
-        let mut v = new_visit(&*self.key, self.cert.user_id, place, photo_hash, taken_at).unwrap();
-        let stamp = w.stamp(&v.visit_id, taken_at + 5 * MINUTE);
-        apply_stamp(&mut v, stamp, &w.trust).unwrap();
-        v
+        new_visit(&*self.key, self.cert.user_id, place, photo_hash, taken_at).unwrap()
     }
 
     /// Visits `place` at `taken_at` and writes a review an hour later.
@@ -116,7 +109,7 @@ impl Person {
         title: &str,
         photo: Option<Vec<u8>>,
     ) -> Review {
-        let visit = self.visit(w, place, taken_at);
+        let visit = self.visit(place, taken_at);
         let d = Draft {
             title: title.into(),
             text: format!("{title}. Written by {}.", self.cert.real_name),

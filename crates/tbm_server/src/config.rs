@@ -16,7 +16,7 @@ pub struct Config {
     /// The server's P-256 private key (32 raw bytes). Created on first start
     /// if missing. Never commit it.
     pub server_key: PathBuf,
-    /// Id of that key, carried in every certificate and stamp (1 to 255).
+    /// Id of that key, carried in every certificate and revocation list (1 to 255).
     #[serde(default = "default_key_id")]
     pub server_key_id: u8,
     /// File holding the admin token. If it is missing, admin endpoints are off.

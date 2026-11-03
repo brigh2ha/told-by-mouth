@@ -95,8 +95,7 @@ impl Sim {
         self.phones.iter().position(|p| p.token == token).unwrap()
     }
 
-    /// Collects `place` at `taken_at` through the node, stamps it and
-    /// writes a review an hour later.
+    /// Collects `place` at `taken_at` through the node and writes a review an hour later.
     fn write(&mut self, i: usize, place: Place, taken_at: u64, title: &str) -> Hash {
         let visit_id = self.collect(i, place, taken_at);
         let p = &mut self.phones[i];
@@ -113,10 +112,7 @@ impl Sim {
     fn collect(&mut self, i: usize, place: Place, taken_at: u64) -> Hash {
         let p = &mut self.phones[i];
         let photo = sha256(format!("{}{}{taken_at}", p.name, place.place_id).as_bytes());
-        let visit_id = p.node.collect(place, photo, taken_at * 1000).unwrap();
-        let stamp = self.world.stamp(&visit_id, taken_at + 60);
-        self.phones[i].node.stamp_visit(&visit_id, stamp).unwrap();
-        visit_id
+        p.node.collect(place, photo, taken_at * 1000).unwrap()
     }
 
     /// `a` connects to `b` and both run the handshake.

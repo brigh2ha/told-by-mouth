@@ -1,11 +1,13 @@
 //! Told by Mouth server.
 //!
-//! It does three small things and stores no reviews:
+//! It does two small things and stores no reviews:
 //!
 //! - issues real-name certificates after an identity check and a device
 //!   attestation (and renews them),
-//! - stamps visits, seeing only the visit_id,
 //! - publishes the signed revocation list.
+//!
+//! It never sees visits: collecting works fully offline, with no server
+//! stamp (Byung's decision, Nov 3).
 //!
 //! All signing uses the same encodings as the phones (`tbm_core`).
 
@@ -29,7 +31,7 @@ use serde_json::json;
 use tbm_core::cbor::Cbor;
 use tbm_core::crypto::{hex, sha256, PublicKey, Signature, Signer, SoftwareSigner};
 use tbm_core::limits::{CLOCK_DRIFT, REAL_NAME_MAX, RENEW_WINDOW};
-use tbm_core::model::{check_len, Certificate, RevocationList, Stamp, UserId};
+use tbm_core::model::{check_len, Certificate, RevocationList, UserId};
 use tbm_core::trust::Trust;
 
 use crate::db::{person_hash, Db};
@@ -70,7 +72,6 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/v1/server-key", get(server_key))
         .route("/v1/certificates", post(issue_certificate))
         .route("/v1/certificates/renew", post(renew_certificate))
-        .route("/v1/stamps", post(stamp))
         .route("/v1/revocations", get(revocations))
         .route("/v1/admin/revoke", post(admin_revoke))
         .with_state(state)
@@ -152,13 +153,6 @@ pub struct RenewRequest {
 }
 
 #[derive(Deserialize)]
-pub struct StampRequest {
-    /// The visit id (32 bytes, base64). The server sees nothing else.
-    pub visit_id: String,
-    pub attestation: AttestationProof,
-}
-
-#[derive(Deserialize)]
 pub struct RevokeRequest {
     /// Revoke a person: hex user id.
     pub user_id: Option<String>,
@@ -172,13 +166,6 @@ pub struct CertificateResponse {
     pub certificate: String,
     pub user_id: String,
     pub expires_at: u64,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct StampResponse {
-    /// CBOR Stamp (stamp_at, server_key_id, stamp_sig), base64.
-    pub stamp: String,
-    pub stamp_at: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -309,25 +296,6 @@ async fn renew_certificate(
         certificate: B64.encode(new.to_cbor()),
         user_id: hex(&new.user_id),
         expires_at: new.expires_at,
-    }))
-}
-
-async fn stamp(
-    State(s): State<Arc<AppState>>,
-    Json(req): Json<StampRequest>,
-) -> ApiResult<StampResponse> {
-    let visit_id: [u8; 32] = b64(&req.visit_id, "visit_id")?
-        .try_into()
-        .map_err(|_| bad("visit_id must be 32 bytes"))?;
-    s.attestation
-        .verify(&req.attestation.platform, &req.attestation.token, &visit_id)
-        .map_err(|e| provider_err("attestation", e))?;
-    let now = (s.clock)();
-    let stamp =
-        Stamp::issue(&s.key, s.key_id, &visit_id, now).map_err(|e| internal(e.to_string()))?;
-    Ok(Json(StampResponse {
-        stamp: B64.encode(stamp.to_cbor()),
-        stamp_at: now,
     }))
 }
 

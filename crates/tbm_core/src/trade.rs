@@ -204,9 +204,8 @@ mod tests {
     fn swap_with_two_way_confirm() {
         let w = World::new();
         let (kim, lee) = (w.person("Kim"), w.person("Lee"));
-        let kc = Card::from_visit(&kim.visit(&w, gangnam(), T0));
-        let lc =
-            Card::from_visit(&lee.visit(&w, place("kakao:9", "Alley Dumplings", 37.5, 127.0), T0));
+        let kc = Card::from_visit(&kim.visit(gangnam(), T0));
+        let lc = Card::from_visit(&lee.visit(place("kakao:9", "Alley Dumplings", 37.5, 127.0), T0));
         let mid = [3; 16];
         let mut a = Trade::new(mid, kim.user_id(), lee.user_id(), lee.cert.device_key);
         let mut b = Trade::new(mid, lee.user_id(), kim.user_id(), kim.cert.device_key);
@@ -223,8 +222,7 @@ mod tests {
 
         // Lee changes their mind: both confirms clear, and Kim's old
         // signature no longer fits.
-        let lc2 =
-            Card::from_visit(&lee.visit(&w, place("kakao:10", "Bibim Bar", 37.51, 127.01), T0));
+        let lc2 = Card::from_visit(&lee.visit(place("kakao:10", "Bibim Bar", 37.51, 127.01), T0));
         b.offer(lc2.clone(), T0 + 9);
         a.on_offer(lc2.clone(), T0 + 9).unwrap();
         assert!(!a.i_confirmed() && !b.they_confirmed());
@@ -253,7 +251,7 @@ mod tests {
     fn rejects_bad_cards() {
         let w = World::new();
         let kim = w.person("Kim");
-        let mut card = Card::from_visit(&kim.visit(&w, gangnam(), T0));
+        let mut card = Card::from_visit(&kim.visit(gangnam(), T0));
         let mut t = Trade::new([0; 16], [1; 16], [2; 16], kim.cert.device_key);
         card.card_id = [0; 32];
         assert_eq!(t.on_offer(card, T0), Err(Error::IdMismatch("card")));

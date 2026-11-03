@@ -16,8 +16,6 @@ pub const CERTIFICATE_VALIDITY: Time = 365 * DAY;
 /// Renewal is allowed in the last 30 days before expiry (and after it).
 pub const RENEW_WINDOW: Time = 30 * DAY;
 
-/// The server stamp must come within 24 hours of the photo.
-pub const STAMP_WINDOW: Time = 24 * HOUR;
 /// A review must be written within 30 days of the visit (to tune).
 pub const REVIEW_WINDOW: Time = 30 * DAY;
 

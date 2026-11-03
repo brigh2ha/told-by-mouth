@@ -45,9 +45,6 @@ pub fn write_review(
     if visit.body.user_id != me.user_id || signer.public_key() != me.device_key {
         return Err(Error::NotMyVisit);
     }
-    if visit.stamp.is_none() {
-        return Err(Error::NotStamped);
-    }
     check_written_in_window(visit, now)?;
     if already_reviewed {
         return Err(Error::AlreadyReviewed);
@@ -116,12 +113,12 @@ pub fn verify_review(
         &review.reviewer_sig,
         "review",
     )?;
-    // The visit belongs to the reviewer, is signed and stamped in time, and
+    // The visit belongs to the reviewer and is signed by them, and
     // the review was written within 30 days of it.
     if b.visit.body.user_id != b.reviewer.user_id {
         return Err(Error::NotMyVisit);
     }
-    verify_visit(&b.visit, &b.reviewer.device_key, trust)?;
+    verify_visit(&b.visit, &b.reviewer.device_key)?;
     check_written_in_window(&b.visit, b.written_at)?;
     check_text(&b.title, &b.text)
 }
@@ -161,7 +158,7 @@ mod tests {
     fn write_rules() {
         let w = World::new();
         let kim = w.person("Kim Minji");
-        let visit = kim.visit(&w, gangnam(), T0);
+        let visit = kim.visit(gangnam(), T0);
         let draft = draft("Best cold noodles", "Broth like ice, noodles like silk.");
 
         // Fine within the window.
@@ -204,22 +201,6 @@ mod tests {
             )
             .unwrap_err(),
             Error::VisitTooOld
-        );
-        // Not stamped.
-        let mut unstamped = visit.clone();
-        unstamped.stamp = None;
-        assert_eq!(
-            write_review(
-                &kim.cert,
-                &kim.key,
-                &w.trust,
-                &unstamped,
-                false,
-                &draft,
-                T0 + HOUR
-            )
-            .unwrap_err(),
-            Error::NotStamped
         );
         // Someone else's visit (for example a traded card) does not count.
         let lee = w.person("Lee Jiwoo");
@@ -264,7 +245,7 @@ mod tests {
         .unwrap();
         // Expired certificate.
         let old = w.person_at("Old Timer", T0 - 400 * DAY);
-        let old_visit = old.visit(&w, gangnam(), T0);
+        let old_visit = old.visit(gangnam(), T0);
         assert_eq!(
             write_review(
                 &old.cert,
@@ -320,7 +301,7 @@ mod tests {
 
         // Claiming someone else's visit fails.
         let lee = w.person("Lee Jiwoo");
-        let lee_visit = lee.visit(&w, gangnam(), T0);
+        let lee_visit = lee.visit(gangnam(), T0);
         let mut stolen = r.clone();
         stolen.body.visit = lee_visit;
         stolen.review_id = stolen.body.id();

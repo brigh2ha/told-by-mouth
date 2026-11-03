@@ -1,7 +1,7 @@
 # systemd unit for the Told by Mouth server.
 # Install: see docs/server.md. Not installed automatically.
 [Unit]
-Description=Told by Mouth server (certificates, stamps, revocations)
+Description=Told by Mouth server (certificates, revocations)
 After=network-online.target
 Wants=network-online.target
 

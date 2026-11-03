@@ -15,7 +15,7 @@ use tower::ServiceExt;
 use tbm_core::cbor::Cbor;
 use tbm_core::crypto::{sha256, Signer, SoftwareSigner};
 use tbm_core::limits::DAY;
-use tbm_core::model::{Certificate, RevocationList, Stamp};
+use tbm_core::model::{Certificate, RevocationList};
 use tbm_core::review::{verify_review, Draft};
 use tbm_core::store::Store;
 use tbm_core::testkit::gangnam;
@@ -223,10 +223,6 @@ async fn without_dev_mode_nothing_is_issued() {
     let (st, _) = s.certificate("Kim", &phone).await;
     assert_eq!(st, StatusCode::SERVICE_UNAVAILABLE);
     let (st, _) = s
-        .call("POST", "/v1/stamps", Some(json!({ "visit_id": B64.encode([1u8; 32]), "attestation": { "platform": "dev", "token": "ok" } })), None)
-        .await;
-    assert_eq!(st, StatusCode::SERVICE_UNAVAILABLE);
-    let (st, _) = s
         .call(
             "POST",
             "/v1/admin/revoke",
@@ -317,7 +313,7 @@ async fn renewal_window_and_signature() {
 }
 
 #[tokio::test]
-async fn end_to_end_certificate_stamp_review() {
+async fn end_to_end_certificate_collect_review() {
     let s = server();
     let trust = s.trust().await;
     let phone = Arc::new(SoftwareSigner::generate());
@@ -325,22 +321,11 @@ async fn end_to_end_certificate_stamp_review() {
     node.set_identity(cert_of(&s.certificate("Kim Minji", &*phone).await.1))
         .unwrap();
 
-    // Collect: the phone builds and signs the visit, the server stamps only the id.
-    let place = gangnam();
-    let visit_id = node.collect(place, sha256(b"photo"), T0 * 1000).unwrap();
-    s.set_time(T0 + 120);
-    let (st, v) = s
-        .call(
-            "POST",
-            "/v1/stamps",
-            Some(json!({ "visit_id": B64.encode(visit_id), "attestation": { "platform": "dev", "token": "ok" } })),
-            None,
-        )
-        .await;
-    assert_eq!(st, StatusCode::OK, "{v}");
-    let stamp = Stamp::from_cbor(&B64.decode(v["stamp"].as_str().unwrap()).unwrap()).unwrap();
-    assert_eq!(stamp.stamp_at, T0 + 120);
-    node.stamp_visit(&visit_id, stamp).unwrap();
+    // Collect: fully offline, no stamp. The visit is a Card at once.
+    let visit_id = node
+        .collect(gangnam(), sha256(b"photo"), T0 * 1000)
+        .unwrap();
+    assert_eq!(node.store().cards().count(), 1);
 
     let id = node
         .write_review(
@@ -356,19 +341,16 @@ async fn end_to_end_certificate_stamp_review() {
     let review = node.store().saved_review(&id).unwrap().review.clone();
     verify_review(&review, None, &trust, T0 + DAY).unwrap();
 
-    // A stamp asked for a day and a half later is refused by the phone.
-    let visit2 = node
-        .collect(gangnam(), sha256(b"photo2"), T0 * 1000)
-        .unwrap();
-    s.set_time(T0 + 36 * 3600);
-    let (_, v) = s
-        .call("POST", "/v1/stamps", Some(json!({ "visit_id": B64.encode(visit2), "attestation": { "platform": "dev", "token": "ok" } })), None)
+    // The server has no stamps endpoint any more.
+    let (st, _) = s
+        .call(
+            "POST",
+            "/v1/stamps",
+            Some(json!({ "visit_id": B64.encode(visit_id) })),
+            None,
+        )
         .await;
-    let late = Stamp::from_cbor(&B64.decode(v["stamp"].as_str().unwrap()).unwrap()).unwrap();
-    assert_eq!(
-        node.stamp_visit(&visit2, late),
-        Err(tbm_core::Error::StampTooLate)
-    );
+    assert_eq!(st, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

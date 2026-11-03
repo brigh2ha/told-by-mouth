@@ -14,7 +14,7 @@ use crate::trust::Trust;
 pub struct Store {
     /// My certificate. The key itself stays in the secure chip.
     pub identity: Option<Certificate>,
-    /// My visits, stamped or waiting for a stamp. Full-size photos stay in
+    /// My visits. Full-size photos stay in
     /// the app's files, keyed by photo_hash.
     pub(crate) visits: BTreeMap<Hash, Visit>,
     /// My cards, by card_id.

@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
 use crate::advert::{version_changed, Token};
-use crate::collect::{apply_stamp, new_visit};
+use crate::collect::new_visit;
 use crate::crypto::{random_bytes, Hash, Signer};
 use crate::error::Error;
 use crate::geo::GeoPoint;
@@ -17,7 +17,7 @@ use crate::limits::{Time, GET_REVIEW_PER_MINUTE, HOLDER_RETRY_MS, IGNORE_TOKEN_S
 use crate::list::{build_list, ListInputs, ListRow, Offer};
 use crate::meeting::{Handshake, Met};
 use crate::model::{
-    Card, Catalog, Certificate, Place, Review, SavedReview, Stamp, ToldBy, TradeRecord, UserId,
+    Card, Catalog, Certificate, Place, Review, SavedReview, ToldBy, TradeRecord, UserId,
 };
 use crate::review::{check_entry, verify_review, write_review, Draft};
 use crate::store::{own_saved, Store};
@@ -214,7 +214,9 @@ impl Node {
     // ------------------------------------------------------------ collect and write
 
     /// Builds and signs a Visit for a food photo (camera or gallery),
-    /// collected now. Returns its id; it waits for a stamp from the server.
+    /// collected now, and adds its Card to the collection straight away:
+    /// there is no server stamp (Byung's decision, Nov 3), so collecting
+    /// works fully offline. Returns the visit id.
     pub fn collect(&mut self, place: Place, photo_hash: Hash, now_ms: u64) -> Result<Hash, Error> {
         let user = self
             .store
@@ -224,17 +226,9 @@ impl Node {
             .user_id;
         let visit = new_visit(&*self.signer, user, place, photo_hash, secs(now_ms))?;
         let id = visit.visit_id;
+        let card = Card::from_visit(&visit);
+        self.store.cards.entry(card.card_id).or_insert(card);
         self.store.visits.insert(id, visit);
-        Ok(id)
-    }
-
-    /// Accepts the server's stamp; the visit becomes a Card.
-    pub fn stamp_visit(&mut self, visit_id: &Hash, stamp: Stamp) -> Result<Hash, Error> {
-        let visit = self.store.visits.get_mut(visit_id).ok_or(Error::NotFound)?;
-        apply_stamp(visit, stamp, &self.trust)?;
-        let card = Card::from_visit(visit);
-        let id = card.card_id;
-        self.store.cards.entry(id).or_insert(card);
         Ok(id)
     }
 
