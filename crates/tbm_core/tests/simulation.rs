@@ -805,3 +805,77 @@ fn one_review_per_visit_but_a_new_visit_allows_another() {
         .unwrap();
     assert_eq!(s.phones[kim].node.store().catalog().entries.len(), 2);
 }
+
+#[test]
+fn unfinished_review_stays_on_the_phone_until_the_restaurant_is_picked() {
+    let mut s = Sim::new();
+    let kim = s.add("Kim");
+    let bo = s.add("Bo");
+
+    // Offline: photo, title and text, but no restaurant yet.
+    let n = &mut s.phones[kim].node;
+    let id = n.start_visit(sha256(b"noodles"), oct(28) * 1000).unwrap();
+    n.set_unfinished_review(&id, draft("Best cold noodles", "Broth like ice."))
+        .unwrap();
+    assert_eq!(n.store().unfinished().count(), 1);
+    assert_eq!(n.store().cards().count(), 0);
+    assert!(n.store().catalog().entries.is_empty());
+
+    // It survives a restart.
+    use tbm_core::cbor::Cbor;
+    let back = Store::from_cbor(&n.store().to_cbor()).unwrap();
+    assert_eq!(back.unfinished_one(&id).unwrap().collected_at, oct(28));
+
+    // Bo meets Kim: nothing unfinished is shared.
+    s.meet(kim, bo);
+    assert!(s.list(bo, None).is_empty());
+
+    // A bad draft can't be finished, and nothing changes.
+    let n = &mut s.phones[kim].node;
+    n.set_unfinished_review(&id, draft("", "No title."))
+        .unwrap();
+    assert!(matches!(
+        n.finish(&id, gangnam(), oct(29) * 1000),
+        Err(Error::Length { field: "title", .. })
+    ));
+    assert_eq!(n.store().unfinished().count(), 1);
+    assert_eq!(n.store().cards().count(), 0);
+
+    // Online again: the restaurant is picked from the map service.
+    n.set_unfinished_review(&id, draft("Best cold noodles", "Broth like ice."))
+        .unwrap();
+    let f = n.finish(&id, gangnam(), oct(29) * 1000).unwrap();
+    assert_eq!(n.store().unfinished().count(), 0);
+    assert!(n.store().card(&f.card_id).is_some());
+    let visit = n.store().visit(&f.visit_id).unwrap();
+    assert_eq!(visit.body.taken_at, oct(28));
+    assert_eq!(visit.body.place, gangnam());
+    let review_id = f.review_id.unwrap();
+    assert_eq!(n.store().catalog().entries.len(), 1);
+
+    // Now it is shared.
+    s.leave(kim);
+    s.meet(kim, bo);
+    let rows = s.list(bo, None);
+    assert_eq!(titles(&rows), ["Best cold noodles"]);
+    assert_eq!(rows[0].entry.review_id, review_id);
+}
+
+#[test]
+fn an_unfinished_visit_without_a_review_becomes_a_card_only() {
+    let mut s = Sim::new();
+    let kim = s.add("Kim");
+    let n = &mut s.phones[kim].node;
+    let id = n.start_visit(sha256(b"dumplings"), oct(20) * 1000).unwrap();
+    let f = n.finish(&id, gangnam(), oct(20) * 1000).unwrap();
+    assert_eq!(f.review_id, None);
+    assert!(n.store().catalog().entries.is_empty());
+    // The finished visit can still be reviewed later.
+    n.write_review(&f.visit_id, &draft("Later", "Good."), oct(21) * 1000)
+        .unwrap();
+
+    // Discarding throws an unfinished one away.
+    let gone = n.start_visit(sha256(b"x"), oct(21) * 1000).unwrap();
+    assert!(n.discard_unfinished(&gone));
+    assert_eq!(n.store().unfinished().count(), 0);
+}

@@ -1,5 +1,6 @@
 //! Writing a review and checking one that arrives from someone else.
 
+use crate::cbor::{Cbor, Dec, Enc};
 use crate::collect::verify_visit;
 use crate::crypto::{sha256, Signer};
 use crate::error::Error;
@@ -8,11 +9,28 @@ use crate::model::{check_len, Certificate, ListEntry, Review, ReviewBody, Visit}
 use crate::trust::Trust;
 
 /// What the user typed.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Draft {
     pub title: String,
     pub text: String,
     pub photo: Option<Vec<u8>>,
+}
+
+impl Cbor for Draft {
+    fn encode(&self, e: &mut Enc) {
+        e.array(3)
+            .text(&self.title)
+            .text(&self.text)
+            .opt_bytes(self.photo.as_deref());
+    }
+    fn decode(d: &mut Dec<'_>) -> Result<Self, Error> {
+        d.expect_array(3)?;
+        Ok(Self {
+            title: d.string()?,
+            text: d.string()?,
+            photo: d.opt_bytes()?.map(<[u8]>::to_vec),
+        })
+    }
 }
 
 pub fn check_text(title: &str, text: &str) -> Result<(), Error> {

@@ -28,7 +28,7 @@ Errors come back as `{"error": "..."}` with 400 (bad input), 401 (admin token), 
 
 ## Identity provider and attestation: still stubs
 
-Which identity check to use depends on the launch country, which is still open (see [decisions.md](decisions.md)). Both checks are traits in `crates/tbm_server/src/providers.rs`:
+The app launches in Korea and the US (see [decisions.md](decisions.md)), so two real identity checks are needed (likely PASS in Korea and an ID document check in the US); which providers exactly is still open. Both checks are traits in `crates/tbm_server/src/providers.rs`:
 
 - `IdentityProvider`: turns the provider's result into a real name and a stable person reference.
 - `Attestation`: checks Apple App Attest or Google Play Integrity, bound to the public key being certified.
@@ -142,6 +142,6 @@ curl -X POST https://<your-domain>/tbm/v1/admin/revoke \
 
 ## Not done yet
 
-- Real identity provider and App Attest / Play Integrity (blocked on the launch country decision).
+- Real identity provider and App Attest / Play Integrity (one provider each for Korea and the US; not chosen yet).
 - A challenge endpoint for attestation.
 - Monitoring and backups of `/var/lib/tbm` (the key and the database).

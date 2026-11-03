@@ -8,14 +8,52 @@ use crate::crypto::Hash;
 use crate::error::Error;
 use crate::limits::{Time, SAVED_LIMIT};
 use crate::model::{Card, Catalog, Certificate, ReviewerId, SavedReview, UserId, Visit};
+use crate::review::Draft;
 use crate::trust::Trust;
+
+/// A visit (and maybe its review) started offline, before the restaurant
+/// was picked from the map service (Byung's decision, Nov 3). Photo, title
+/// and text can all be done offline; picking the restaurant needs the app
+/// online and finishes it. Until then it is kept on this phone only: it is
+/// not signed, not a Card, not in the catalog, never shared or traded.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Unfinished {
+    /// A random local id. It never leaves the phone.
+    pub id: Hash,
+    pub photo_hash: Hash,
+    /// When the photo was added in the app; becomes the visit's `taken_at`.
+    pub collected_at: Time,
+    /// The review written so far, if any. Checked only when finishing.
+    pub draft: Option<Draft>,
+}
+
+impl Cbor for Unfinished {
+    fn encode(&self, e: &mut Enc) {
+        e.array(4)
+            .bytes(&self.id)
+            .bytes(&self.photo_hash)
+            .u64(self.collected_at)
+            .opt(&self.draft);
+    }
+    fn decode(d: &mut Dec<'_>) -> Result<Self, Error> {
+        d.expect_array(4)?;
+        Ok(Self {
+            id: d.fixed()?,
+            photo_hash: d.fixed()?,
+            collected_at: d.u64()?,
+            draft: d.opt()?,
+        })
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Store {
     /// My certificate. The key itself stays in the secure chip.
     pub identity: Option<Certificate>,
-    /// My visits. Full-size photos stay in
-    /// the app's files, keyed by photo_hash.
+    /// Visits and reviews waiting for the restaurant to be picked online.
+    pub(crate) unfinished: BTreeMap<Hash, Unfinished>,
+    /// My finished visits. Full-size photos stay in the app's files, keyed
+    /// by photo_hash.
     pub(crate) visits: BTreeMap<Hash, Visit>,
     /// My cards, by card_id.
     pub(crate) cards: BTreeMap<Hash, Card>,
@@ -33,6 +71,14 @@ pub struct Store {
 impl Store {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn unfinished(&self) -> impl Iterator<Item = &Unfinished> {
+        self.unfinished.values()
+    }
+
+    pub fn unfinished_one(&self, id: &Hash) -> Option<&Unfinished> {
+        self.unfinished.get(id)
     }
 
     pub fn visits(&self) -> impl Iterator<Item = &Visit> {
@@ -145,7 +191,11 @@ impl Store {
 
 impl Cbor for Store {
     fn encode(&self, e: &mut Enc) {
-        e.array(10).u64(1).opt(&self.identity);
+        e.array(11).u64(2).opt(&self.identity);
+        e.array(self.unfinished.len());
+        for u in self.unfinished.values() {
+            e.item(u);
+        }
         e.array(self.visits.len());
         for v in self.visits.values() {
             e.item(v);
@@ -178,11 +228,16 @@ impl Cbor for Store {
     }
 
     fn decode(d: &mut Dec<'_>) -> Result<Self, Error> {
-        d.expect_array(10)?;
-        if d.u64()? != 1 {
+        d.expect_array(11)?;
+        if d.u64()? != 2 {
             return Err(Error::Decode("unknown store version".into()));
         }
         let identity = d.opt()?;
+        let unfinished = d
+            .list::<Unfinished>()?
+            .into_iter()
+            .map(|u| (u.id, u))
+            .collect();
         let visits = d
             .list::<Visit>()?
             .into_iter()
@@ -204,6 +259,7 @@ impl Cbor for Store {
         let range_m = if d.null()? { None } else { Some(d.u32()?) };
         Ok(Self {
             identity,
+            unfinished,
             visits,
             cards,
             saved,

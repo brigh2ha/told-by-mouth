@@ -20,7 +20,7 @@ use crate::model::{
     Card, Catalog, Certificate, Place, Review, SavedReview, ToldBy, TradeRecord, UserId,
 };
 use crate::review::{check_entry, verify_review, write_review, Draft};
-use crate::store::{own_saved, Store};
+use crate::store::{own_saved, Store, Unfinished};
 use crate::trade::Trade;
 use crate::trust::Trust;
 use crate::wire::{FrameReader, Message};
@@ -154,6 +154,15 @@ fn send(link: LinkId, msg: &Message) -> Action {
     }
 }
 
+/// What [`Node::finish`] made.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Finished {
+    pub visit_id: Hash,
+    pub card_id: Hash,
+    /// The signed review, if a draft was written while unfinished.
+    pub review_id: Option<Hash>,
+}
+
 fn secs(now_ms: u64) -> Time {
     now_ms / 1000
 }
@@ -213,25 +222,105 @@ impl Node {
 
     // ------------------------------------------------------------ collect and write
 
-    /// Builds and signs a Visit for a food photo (camera or gallery),
-    /// collected now, and adds its Card to the collection straight away:
-    /// there is no server stamp (Byung's decision, Nov 3), so collecting
-    /// works fully offline. Returns the visit id.
-    pub fn collect(&mut self, place: Place, photo_hash: Hash, now_ms: u64) -> Result<Hash, Error> {
-        let user = self
-            .store
-            .identity
-            .as_ref()
-            .ok_or(Error::NoIdentity)?
-            .user_id;
-        let visit = new_visit(&*self.signer, user, place, photo_hash, secs(now_ms))?;
-        let id = visit.visit_id;
-        let card = Card::from_visit(&visit);
-        self.store.cards.entry(card.card_id).or_insert(card);
-        self.store.visits.insert(id, visit);
+    /// Starts a visit from a food photo (camera or gallery), offline. It
+    /// stays unfinished, on this phone only, until [`Node::finish`] sets the
+    /// restaurant. Returns its local id.
+    pub fn start_visit(&mut self, photo_hash: Hash, now_ms: u64) -> Result<Hash, Error> {
+        self.store.identity.as_ref().ok_or(Error::NoIdentity)?;
+        let id = random_bytes();
+        self.store.unfinished.insert(
+            id,
+            Unfinished {
+                id,
+                photo_hash,
+                collected_at: secs(now_ms),
+                draft: None,
+            },
+        );
         Ok(id)
     }
 
+    /// Saves the review written so far for an unfinished visit, offline.
+    /// It is checked only when finishing.
+    pub fn set_unfinished_review(&mut self, id: &Hash, draft: Draft) -> Result<(), Error> {
+        let u = self.store.unfinished.get_mut(id).ok_or(Error::NotFound)?;
+        u.draft = Some(draft);
+        Ok(())
+    }
+
+    /// Throws an unfinished visit away.
+    pub fn discard_unfinished(&mut self, id: &Hash) -> bool {
+        self.store.unfinished.remove(id).is_some()
+    }
+
+    /// Finishes an unfinished visit with the restaurant the reviewer picked
+    /// from the map service (the app must be online for that; the location
+    /// always comes from the map service, never from the phone's GPS). Only
+    /// now is the Visit signed and added as a Card, and the review, if one
+    /// was written, signed and shared. If any check fails, nothing changes
+    /// and it stays unfinished.
+    pub fn finish(&mut self, id: &Hash, place: Place, now_ms: u64) -> Result<Finished, Error> {
+        let now = secs(now_ms);
+        let me = self.store.identity.as_ref().ok_or(Error::NoIdentity)?;
+        let u = self.store.unfinished.get(id).ok_or(Error::NotFound)?;
+        let visit = new_visit(
+            &*self.signer,
+            me.user_id,
+            place,
+            u.photo_hash,
+            u.collected_at,
+        )?;
+        let review = match &u.draft {
+            Some(draft) => Some((
+                write_review(
+                    me,
+                    &*self.signer,
+                    &self.trust,
+                    &visit,
+                    self.store.is_reviewed(&visit.visit_id),
+                    draft,
+                    now,
+                )?,
+                draft.photo.clone(),
+            )),
+            None => None,
+        };
+        self.store.unfinished.remove(id);
+        let visit_id = visit.visit_id;
+        let card = Card::from_visit(&visit);
+        let card_id = card.card_id;
+        self.store.cards.entry(card_id).or_insert(card);
+        self.store.visits.insert(visit_id, visit);
+        let review_id = match review {
+            Some((review, photo)) => {
+                let rid = review.review_id;
+                self.store.put_saved(own_saved(review, photo, now))?;
+                self.events.push(Event::ListChanged);
+                Some(rid)
+            }
+            None => None,
+        };
+        Ok(Finished {
+            visit_id,
+            card_id,
+            review_id,
+        })
+    }
+
+    /// Collects a restaurant in one step when the restaurant is already
+    /// picked (online): start and finish together. Returns the visit id.
+    pub fn collect(&mut self, place: Place, photo_hash: Hash, now_ms: u64) -> Result<Hash, Error> {
+        let id = self.start_visit(photo_hash, now_ms)?;
+        match self.finish(&id, place, now_ms) {
+            Ok(f) => Ok(f.visit_id),
+            Err(e) => {
+                self.store.unfinished.remove(&id);
+                Err(e)
+            }
+        }
+    }
+
+    /// Writes a review for a finished visit of mine.
     pub fn write_review(
         &mut self,
         visit_id: &Hash,

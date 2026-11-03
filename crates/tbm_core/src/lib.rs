@@ -27,4 +27,4 @@ pub mod wire;
 pub mod testkit;
 
 pub use error::Error;
-pub use node::{Action, Event, LinkId, Node};
+pub use node::{Action, Event, Finished, LinkId, Node};

@@ -1,8 +1,8 @@
 //! Pluggable checks the server relies on: the real-name identity provider
 //! and the device-integrity attestation (Apple App Attest, Google Play
-//! Integrity). The launch country and provider are not decided yet, so only
-//! development stubs exist. They accept anything and are enabled only with
-//! `dev_mode = true`.
+//! Integrity). The app launches in Korea and the US, so two identity
+//! providers are needed. Neither is chosen yet, so only development stubs
+//! exist. They accept anything and are enabled only with `dev_mode = true`.
 
 /// What an identity provider vouches for.
 #[derive(Clone, Debug, PartialEq, Eq)]

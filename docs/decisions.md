@@ -4,7 +4,9 @@ Decisions Byung has made so far, newest first. The full reasoning is in [plan.md
 
 | Date | Decision |
 | --- | --- |
-| 2026-11-03 | **No server stamp on visits.** Collecting a restaurant works fully offline: a visit signed by the phone becomes a Card at once, and the server never sees visits. The 24-hour stamp rule and the `/v1/stamps` endpoint are gone; the 30-day review window stays. Side effect: a visit's time is now only the collector's word, so a phone whose key was revoked could still sign back-dated visits and reviews dated before its revoke time. How restaurant locations are noted offline is still being decided. |
+| 2026-11-03 | **Launch in both Korea and the US.** That means two map services side by side (likely Kakao in Korea; Google or Foursquare in the US), so restaurant ids carry their service as a prefix (for example `kakao:123`), and the server needs two identity providers (likely PASS in Korea and an ID document check in the US). |
+| 2026-11-03 | **The restaurant is picked online, from the map service, before a review is finished.** Photo, title and text can be done offline. Until the restaurant is picked, the visit and its review are *unfinished*: kept on the phone only, not signed, not a card, not in the catalog, never shared or traded. Picking the restaurant signs the visit (dated when the photo was added) and the review. The location always comes from the map service, never from the reviewer's GPS. This replaces the server stamp. |
+| 2026-11-03 | **No server stamp on visits.** Collecting a restaurant works fully offline: a visit signed by the phone becomes a Card at once, and the server never sees visits. The 24-hour stamp rule and the `/v1/stamps` endpoint are gone; the 30-day review window stays. Side effect: a visit's time is now only the collector's word, so a phone whose key was revoked could still sign back-dated visits and reviews dated before its revoke time. |
 | 2026-10-30 | **Any photo can be used** to collect a restaurant, from the camera or the gallery, and **the visit no longer records where the photo was taken** (no location, no accuracy). A visit records only which restaurant, the photo's hash and when it was collected in the app. |
 | 2026-10-30 | **No location check when collecting.** The app trusts the reviewer, whose verified real name stands behind every review. The spec's "fix within 50 m" and "place within 100 m + accuracy" rules are dropped. The server stamp within 24 hours of collecting and the 30-day review window stay. |
 | 2026-10-30 | **Coding starts, at Byung's request**, following the review sharing algorithm spec (rev 44, https://claude.ai/artifact/5mNvvsPuEomyj8u6aQ4Hyt). First pieces: the shared Rust core `tbm_core` (every rule, no I/O, tested with multi-phone simulations) and the small server `tbm_server` (certificates, visit stamps, revocation list; stores no reviews). Crates use the `tbm_` prefix. |
@@ -22,7 +24,6 @@ Decisions Byung has made so far, newest first. The full reasoning is in [plan.md
 
 ## Still open
 
-- Which country first (decides the map service and the identity check provider).
 - Does a trade swap cards, or give each player a copy? The competitor research leans towards a copy plus a scarce "first-hand" badge.
 - How far does a review travel: only to people the reviewer meets, or onward through several people?
 - How can a review be taken back once shared? (A "withdrawn" notice that spreads the same way?)
