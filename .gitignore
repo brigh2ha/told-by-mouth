@@ -1,0 +1,6 @@
+/target
+# Server secrets and data never go in git.
+*.key
+*.sqlite
+*.sqlite3
+/server-data/
